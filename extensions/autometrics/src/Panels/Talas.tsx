@@ -208,21 +208,82 @@ function Talas({ setCurrentView, commandsManager }) {
 
       console.log('Center point:', centerPoint);
 
-      // For now, skip creating the CircleROI annotation to avoid coordinate processing errors
-      // Just log the coordinates and anatomical name
+      // Create a simple div element to show the annotation
+      const annotationDiv = document.createElement('div');
+      annotationDiv.className = 'custom-annotation';
+      annotationDiv.style.cssText = `
+        position: absolute;
+        color: #ff0000;
+        font-size: 14px;
+        font-weight: bold;
+        pointer-events: none;
+        z-index: 1000;
+        transform: translate(-50%, -50%);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      `;
+
+      // Create the red circle element
+      const circleDiv = document.createElement('div');
+      circleDiv.style.cssText = `
+        width: 8px;
+        height: 8px;
+        border: 2px solid #ff0000;
+        border-radius: 50%;
+        background: transparent;
+        flex-shrink: 0;
+      `;
+
+      // Create the text element
+      const textDiv = document.createElement('span');
+      textDiv.textContent = groupName;
+      textDiv.style.cssText = `
+        color: #ff0000;
+        font-size: 14px;
+        font-weight: bold;
+      `;
+
+      // Assemble the annotation
+      annotationDiv.appendChild(circleDiv);
+      annotationDiv.appendChild(textDiv);
+
+      // Get the viewport element and calculate position
+      const viewportElement = element;
+      const rect = viewportElement.getBoundingClientRect();
+
+      // Convert world coordinates back to screen coordinates
+      const screenCoords = enabledElement.viewport.worldToCanvas([
+        centerPoint[0],
+        centerPoint[1],
+        centerPoint[2] || 0,
+      ]);
+
+      if (screenCoords && screenCoords.length >= 2) {
+        annotationDiv.style.left = `${screenCoords[0]}px`;
+        annotationDiv.style.top = `${screenCoords[1]}px`;
+
+        // Add the annotation to the viewport
+        viewportElement.appendChild(annotationDiv);
+
+        console.log(
+          `Custom annotation created for ${groupName} at screen coordinates:`,
+          screenCoords
+        );
+      } else {
+        console.warn('Could not convert world coordinates to screen coordinates');
+      }
+    } catch (annotationError) {
+      console.error('Error creating custom annotation:', annotationError);
+      console.log('Falling back to coordinate-only capture');
+
+      // If all annotation methods fail, just log the coordinates
       console.log(
         `Coordinate captured for ${groupName} at:`,
         worldCoords,
         'with label:',
-        anatomicalName
+        groupName
       );
-
-      // TODO: Implement a different annotation method that doesn't trigger coordinate processing errors
-      // For now, we'll just capture the coordinates without drawing the annotation
-    } catch (error) {
-      console.error('Error in coordinate capture:', error);
-      console.error('Error details:', error.message);
-      console.error('Error stack:', error.stack);
     }
   };
 
