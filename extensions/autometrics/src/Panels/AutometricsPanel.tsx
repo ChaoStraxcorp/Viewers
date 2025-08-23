@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@ohif/ui-next';
-import Talas from './View/Talas';
-import Main from './View/Main';
+import Talas from './Talas';
+import Main from './Main';
 
 const AutometricsPanel = ({ commandsManager, servicesManager }) => {
   const [currentView, setCurrentView] = useState('autometrics'); // 'autometrics' or 'talas'
@@ -50,9 +50,7 @@ const AutometricsPanel = ({ commandsManager, servicesManager }) => {
   }
 
   // Default Autometrics view
-  return (
-    <Main handleButtonClick={handleButtonClick} />
-  );
+  return <Main handleButtonClick={handleButtonClick} />;
 };
 
 export default AutometricsPanel;
