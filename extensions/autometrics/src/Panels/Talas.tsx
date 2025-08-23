@@ -438,19 +438,17 @@ function Talas({ setCurrentView, commandsManager }) {
       const annotationDiv = document.createElement('div');
       annotationDiv.className = 'custom-annotation';
       annotationDiv.style.cssText = `
-        position: absolute;
-        color: #ff0000;
-        font-size: 14px;
-        font-weight: bold;
-        pointer-events: none;
-        z-index: 1000;
-        transform: translate(-50%, -50%);
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid red;
-      `;
+                  position: absolute;
+                  color: #ff0000;
+                  font-size: 14px;
+                  font-weight: bold;
+                  pointer-events: none;
+                  z-index: 1000;
+                  transform: translate(-50%, -50%);
+                  display: flex;
+                  align-items: center;
+                  gap: 4px;
+                `;
 
       // Create the red circle element
       const circleDiv = document.createElement('div');
