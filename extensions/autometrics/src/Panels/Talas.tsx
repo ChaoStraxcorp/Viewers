@@ -263,6 +263,14 @@ function Talas({ setCurrentView, commandsManager }) {
       ]);
 
       if (screenCoords && screenCoords.length >= 2) {
+        // Remove existing annotation for this group if it exists
+        const existingAnnotation = annotationsRef.current.get(groupName);
+        if (existingAnnotation) {
+          existingAnnotation.element.remove();
+          annotationsRef.current.delete(groupName);
+          console.log(`Removed existing annotation for ${groupName}`);
+        }
+
         annotationDiv.style.left = `${screenCoords[0]}px`;
         annotationDiv.style.top = `${screenCoords[1]}px`;
 
