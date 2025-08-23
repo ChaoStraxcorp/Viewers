@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@ohif/ui-next';
-import { getEnabledElement } from '@cornerstonejs/core';
+import { getEnabledElement, getEnabledElements } from '@cornerstonejs/core';
 import { annotation } from '@cornerstonejs/tools';
 
 function Talas({ setCurrentView, commandsManager }) {
@@ -18,6 +18,9 @@ function Talas({ setCurrentView, commandsManager }) {
   } | null>(null);
   const annotationsRef = useRef<
     Map<string, { element: HTMLElement; worldCoords: number[]; sliceIndex: number }>
+  >(new Map());
+  const viewportAnnotationsRef = useRef<
+    Map<string, Map<string, { element: HTMLElement; worldCoords: number[]; sliceIndex: number }>>
   >(new Map());
 
   const handleBack = () => {
@@ -240,7 +243,7 @@ function Talas({ setCurrentView, commandsManager }) {
 
       // Create the text element
       const textDiv = document.createElement('span');
-      textDiv.textContent = groupName;
+      textDiv.textContent = groupName; // Use short label (M1, M5, C, T)
       textDiv.style.cssText = `
         color: #ff0000;
         font-size: 14px;
@@ -284,6 +287,9 @@ function Talas({ setCurrentView, commandsManager }) {
           sliceIndex: enabledElement.viewport.getSliceIndex(),
         });
 
+        // Create annotations for all viewports
+        createAnnotationsForAllViewports(groupName, centerPoint, anatomicalName);
+
         console.log(
           `Custom annotation created for ${groupName} at screen coordinates:`,
           screenCoords
@@ -305,6 +311,220 @@ function Talas({ setCurrentView, commandsManager }) {
     }
   };
 
+  // Function to create annotations for all viewports using Cornerstone's annotation system
+  const createAnnotationsForAllViewports = (
+    groupName: string,
+    worldCoords: number[],
+    anatomicalName: string
+  ) => {
+    try {
+      // Try to get viewports from the services manager if available
+      let viewportIds = [];
+
+      if (commandsManager && commandsManager.services) {
+        const servicesManager = commandsManager.services;
+        console.log('Available services:', Object.keys(servicesManager));
+
+        // Try different ways to get viewport IDs
+        if (servicesManager.viewportGridService) {
+          viewportIds = servicesManager.viewportGridService.getViewportIds();
+          console.log('Found viewport IDs from viewportGridService:', viewportIds);
+        }
+      }
+
+      if (viewportIds.length > 0) {
+        // Use viewport grid service method
+        viewportIds.forEach(viewportId => {
+          try {
+            // Get the viewport element
+            const viewportElement = document.querySelector(
+              `[data-viewport-id="${viewportId}"]`
+            ) as HTMLDivElement;
+            if (viewportElement) {
+              console.log(`Creating annotation in viewport: ${viewportId}`);
+              createAnnotationInViewportDirect(viewportElement, groupName, worldCoords);
+            }
+          } catch (error) {
+            console.error(`Error creating annotation in viewport ${viewportId}:`, error);
+          }
+        });
+      } else {
+        console.warn('Viewport grid service not available, using direct DOM method');
+
+        // Try multiple selectors to find MPR viewports
+        const selectors = [
+          '.cornerstone-viewport-element',
+          '[data-viewport-id*="mpr"]',
+          '[data-viewport-id*="MPR"]',
+          '[data-viewport-uid*="mpr"]',
+          '[data-viewport-uid*="MPR"]',
+          '[data-viewportid*="mpr"]',
+          '[data-viewportid*="MPR"]',
+        ];
+
+        let allViewports: NodeListOf<HTMLDivElement> | null = null;
+
+        for (const selector of selectors) {
+          const viewports = document.querySelectorAll(selector) as NodeListOf<HTMLDivElement>;
+          if (viewports.length >= 3) {
+            console.log(`Found ${viewports.length} viewports with selector: ${selector}`);
+            allViewports = viewports;
+            break;
+          }
+        }
+
+        if (!allViewports) {
+          // Fallback to the original method
+          allViewports = document.querySelectorAll(
+            '.cornerstone-viewport-element'
+          ) as NodeListOf<HTMLDivElement>;
+          console.log(`Fallback: Found ${allViewports.length} viewport elements directly`);
+        }
+
+        // Log all found viewports for debugging
+        allViewports.forEach((viewport, index) => {
+          console.log(`Viewport ${index}:`, {
+            id: viewport.id,
+            dataViewportId: viewport.getAttribute('data-viewport-id'),
+            dataViewportUid: viewport.getAttribute('data-viewport-uid'),
+            className: viewport.className,
+          });
+        });
+
+        allViewports.forEach((viewportElement, index) => {
+          try {
+            console.log(
+              `Creating annotation in viewport ${index}:`,
+              viewportElement.getAttribute('data-viewport-id') ||
+                viewportElement.id ||
+                `viewport-${index}`
+            );
+            createAnnotationInViewportDirect(viewportElement, groupName, worldCoords);
+          } catch (error) {
+            console.error(`Error creating annotation in viewport ${index}:`, error);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error creating annotations for all viewports:', error);
+    }
+  };
+
+  // Direct method to create annotation in a specific viewport
+  const createAnnotationInViewportDirect = (
+    viewportElement: HTMLDivElement,
+    groupName: string,
+    worldCoords: number[]
+  ) => {
+    try {
+      const enabledElement = getEnabledElement(viewportElement);
+      if (!enabledElement) {
+        console.warn('No enabled element found for viewport');
+        return;
+      }
+
+      // Log viewport information for debugging
+      const viewportId =
+        viewportElement.getAttribute('data-viewport-id') ||
+        viewportElement.getAttribute('data-viewport-uid') ||
+        viewportElement.getAttribute('data-viewportid') ||
+        viewportElement.id ||
+        'viewport';
+      console.log(`Processing viewport: ${viewportId}`);
+      console.log(`Viewport element:`, viewportElement);
+      console.log(`Enabled element:`, enabledElement);
+
+      // Create a simple div element to show the annotation
+      const annotationDiv = document.createElement('div');
+      annotationDiv.className = 'custom-annotation';
+      annotationDiv.style.cssText = `
+        position: absolute;
+        color: #ff0000;
+        font-size: 14px;
+        font-weight: bold;
+        pointer-events: none;
+        z-index: 1000;
+        transform: translate(-50%, -50%);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid red;
+      `;
+
+      // Create the red circle element
+      const circleDiv = document.createElement('div');
+      circleDiv.style.cssText = `
+        width: 8px;
+        height: 8px;
+        border: 2px solid #ff0000;
+        border-radius: 50%;
+        background: transparent;
+        flex-shrink: 0;
+      `;
+
+      // Create the text element
+      const textDiv = document.createElement('span');
+      textDiv.textContent = groupName;
+      textDiv.style.cssText = `
+        color: #ff0000;
+        font-size: 14px;
+        font-weight: bold;
+      `;
+
+      // Assemble the annotation
+      annotationDiv.appendChild(circleDiv);
+      annotationDiv.appendChild(textDiv);
+
+      // Convert world coordinates to screen coordinates for this viewport
+      const screenCoords = enabledElement.viewport.worldToCanvas([
+        worldCoords[0],
+        worldCoords[1],
+        worldCoords[2] || 0,
+      ]);
+
+      console.log(`World coords for ${viewportId}:`, worldCoords);
+      console.log(`Screen coords for ${viewportId}:`, screenCoords);
+
+      if (screenCoords && screenCoords.length >= 2) {
+        // Remove existing annotation for this group if it exists
+        const annotationKey = `${groupName}-${viewportId}`;
+        const existingAnnotation = annotationsRef.current.get(annotationKey);
+        if (existingAnnotation) {
+          existingAnnotation.element.remove();
+          annotationsRef.current.delete(annotationKey);
+          console.log(`Removed existing annotation for ${groupName} in viewport ${viewportId}`);
+        }
+
+        annotationDiv.style.left = `${screenCoords[0]}px`;
+        annotationDiv.style.top = `${screenCoords[1]}px`;
+
+        // Add the annotation to the viewport
+        viewportElement.appendChild(annotationDiv);
+
+        // Store the annotation reference and world coordinates for position updates
+        annotationsRef.current.set(annotationKey, {
+          element: annotationDiv,
+          worldCoords: worldCoords,
+          sliceIndex: enabledElement.viewport.getSliceIndex(),
+        });
+
+        console.log(
+          `Custom annotation created for ${groupName} in viewport ${viewportId} at screen coordinates:`,
+          screenCoords
+        );
+        console.log(`Annotation element added to viewport ${viewportId}:`, annotationDiv);
+      } else {
+        console.warn(
+          'Could not convert world coordinates to screen coordinates for viewport:',
+          viewportId
+        );
+      }
+    } catch (error) {
+      console.error('Error creating annotation in viewport:', error);
+    }
+  };
+
   // Cleanup event listeners on unmount
   useEffect(() => {
     return () => {
@@ -314,36 +534,46 @@ function Talas({ setCurrentView, commandsManager }) {
 
   // Add viewport change listener to update annotation positions
   useEffect(() => {
-    const element = document.querySelector('.cornerstone-viewport-element') as HTMLDivElement;
-    if (!element) return;
-
     let animationFrameId: number;
 
     const updateAnnotationPositions = () => {
-      const enabledElement = getEnabledElement(element);
-      if (!enabledElement) return;
+      // Get all viewport elements
+      const allViewports = document.querySelectorAll(
+        '.cornerstone-viewport-element'
+      ) as NodeListOf<HTMLDivElement>;
 
-      annotationsRef.current.forEach((annotation, groupName) => {
-        try {
-          // Only update if the current slice index matches the annotation's slice index
-          if (enabledElement.viewport.getSliceIndex() === annotation.sliceIndex) {
-            const screenCoords = enabledElement.viewport.worldToCanvas([
-              annotation.worldCoords[0],
-              annotation.worldCoords[1],
-              annotation.worldCoords[2] || 0,
-            ]);
-            if (screenCoords && screenCoords.length >= 2) {
-              annotation.element.style.left = `${screenCoords[0]}px`;
-              annotation.element.style.top = `${screenCoords[1]}px`;
-              annotation.element.style.display = 'flex'; // Show the annotation
+      allViewports.forEach(viewportElement => {
+        const enabledElement = getEnabledElement(viewportElement);
+        if (!enabledElement) return;
+
+        const viewportId =
+          viewportElement.getAttribute('data-viewport-id') ||
+          viewportElement.getAttribute('data-viewport-uid') ||
+          viewportElement.getAttribute('data-viewportid') ||
+          viewportElement.id ||
+          'viewport';
+
+        // Update annotations for this specific viewport
+        annotationsRef.current.forEach((annotation, annotationKey) => {
+          try {
+            // Check if this annotation belongs to this viewport
+            if (annotationKey.includes(viewportId)) {
+              const screenCoords = enabledElement.viewport.worldToCanvas([
+                annotation.worldCoords[0],
+                annotation.worldCoords[1],
+                annotation.worldCoords[2] || 0,
+              ]);
+
+              if (screenCoords && screenCoords.length >= 2) {
+                annotation.element.style.left = `${screenCoords[0]}px`;
+                annotation.element.style.top = `${screenCoords[1]}px`;
+                annotation.element.style.display = 'flex'; // Show the annotation
+              }
             }
-          } else {
-            // Hide the annotation if we're on a different slice
-            annotation.element.style.display = 'none';
+          } catch (error) {
+            console.error(`Error updating annotation position for ${annotationKey}:`, error);
           }
-        } catch (error) {
-          console.error(`Error updating annotation position for ${groupName}:`, error);
-        }
+        });
       });
     };
 
@@ -354,18 +584,24 @@ function Talas({ setCurrentView, commandsManager }) {
       animationFrameId = requestAnimationFrame(updateAnnotationPositions);
     };
 
-    // Listen for various viewport change events
-    element.addEventListener('wheel', handleViewportChange, { passive: true });
-    element.addEventListener(
-      'mousemove',
-      e => {
-        if (e.buttons > 0) {
-          // Only update during panning
-          handleViewportChange();
-        }
-      },
-      { passive: true }
-    );
+    // Listen for various viewport change events on all viewports
+    const allViewports = document.querySelectorAll(
+      '.cornerstone-viewport-element'
+    ) as NodeListOf<HTMLDivElement>;
+
+    allViewports.forEach(element => {
+      element.addEventListener('wheel', handleViewportChange, { passive: true });
+      element.addEventListener(
+        'mousemove',
+        e => {
+          if (e.buttons > 0) {
+            // Only update during panning
+            handleViewportChange();
+          }
+        },
+        { passive: true }
+      );
+    });
 
     // Use a more frequent update for smooth positioning
     const intervalId = setInterval(updateAnnotationPositions, 100);
@@ -375,8 +611,12 @@ function Talas({ setCurrentView, commandsManager }) {
         cancelAnimationFrame(animationFrameId);
       }
       clearInterval(intervalId);
-      element.removeEventListener('wheel', handleViewportChange);
-      element.removeEventListener('mousemove', handleViewportChange);
+
+      // Remove event listeners from all viewports
+      allViewports.forEach(element => {
+        element.removeEventListener('wheel', handleViewportChange);
+        element.removeEventListener('mousemove', handleViewportChange);
+      });
     };
   }, []);
 
