@@ -16,6 +16,9 @@ function Talas({ setCurrentView, commandsManager }) {
     handleRightClick: (event: MouseEvent) => void;
     handleMouseDown: (event: MouseEvent) => void;
   } | null>(null);
+  const annotationsRef = useRef<
+    Map<string, { element: HTMLElement; worldCoords: number[]; sliceIndex: number }>
+  >(new Map());
 
   const handleBack = () => {
     setCurrentView('autometrics');
@@ -266,6 +269,13 @@ function Talas({ setCurrentView, commandsManager }) {
         // Add the annotation to the viewport
         viewportElement.appendChild(annotationDiv);
 
+        // Store the annotation reference and world coordinates for position updates
+        annotationsRef.current.set(groupName, {
+          element: annotationDiv,
+          worldCoords: centerPoint,
+          sliceIndex: enabledElement.viewport.getSliceIndex(),
+        });
+
         console.log(
           `Custom annotation created for ${groupName} at screen coordinates:`,
           screenCoords
@@ -291,6 +301,74 @@ function Talas({ setCurrentView, commandsManager }) {
   useEffect(() => {
     return () => {
       removeClickListener();
+    };
+  }, []);
+
+  // Add viewport change listener to update annotation positions
+  useEffect(() => {
+    const element = document.querySelector('.cornerstone-viewport-element') as HTMLDivElement;
+    if (!element) return;
+
+    let animationFrameId: number;
+
+    const updateAnnotationPositions = () => {
+      const enabledElement = getEnabledElement(element);
+      if (!enabledElement) return;
+
+      annotationsRef.current.forEach((annotation, groupName) => {
+        try {
+          // Only update if the current slice index matches the annotation's slice index
+          if (enabledElement.viewport.getSliceIndex() === annotation.sliceIndex) {
+            const screenCoords = enabledElement.viewport.worldToCanvas([
+              annotation.worldCoords[0],
+              annotation.worldCoords[1],
+              annotation.worldCoords[2] || 0,
+            ]);
+            if (screenCoords && screenCoords.length >= 2) {
+              annotation.element.style.left = `${screenCoords[0]}px`;
+              annotation.element.style.top = `${screenCoords[1]}px`;
+              annotation.element.style.display = 'flex'; // Show the annotation
+            }
+          } else {
+            // Hide the annotation if we're on a different slice
+            annotation.element.style.display = 'none';
+          }
+        } catch (error) {
+          console.error(`Error updating annotation position for ${groupName}:`, error);
+        }
+      });
+    };
+
+    const handleViewportChange = () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      animationFrameId = requestAnimationFrame(updateAnnotationPositions);
+    };
+
+    // Listen for various viewport change events
+    element.addEventListener('wheel', handleViewportChange, { passive: true });
+    element.addEventListener(
+      'mousemove',
+      e => {
+        if (e.buttons > 0) {
+          // Only update during panning
+          handleViewportChange();
+        }
+      },
+      { passive: true }
+    );
+
+    // Use a more frequent update for smooth positioning
+    const intervalId = setInterval(updateAnnotationPositions, 100);
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      clearInterval(intervalId);
+      element.removeEventListener('wheel', handleViewportChange);
+      element.removeEventListener('mousemove', handleViewportChange);
     };
   }, []);
 
