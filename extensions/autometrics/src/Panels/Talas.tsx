@@ -224,7 +224,7 @@ function Talas({ setCurrentView, commandsManager }) {
         font-weight: bold;
         pointer-events: none;
         z-index: 1000;
-        transform: translate(-50%, -50%);
+        transform: translate(-4px, -4px);
         display: flex;
         align-items: center;
         gap: 4px;
@@ -393,12 +393,20 @@ function Talas({ setCurrentView, commandsManager }) {
 
         allViewports.forEach((viewportElement, index) => {
           try {
-            console.log(
-              `Creating annotation in viewport ${index}:`,
+            const viewportId =
               viewportElement.getAttribute('data-viewport-id') ||
-                viewportElement.id ||
-                `viewport-${index}`
-            );
+              viewportElement.getAttribute('data-viewport-uid') ||
+              viewportElement.getAttribute('data-viewportid') ||
+              viewportElement.id ||
+              `viewport-${index}`;
+
+            // Skip axial view to avoid duplicate annotation
+            if (viewportId.includes('axial')) {
+              console.log(`Skipping axial view to avoid duplicate annotation`);
+              return;
+            }
+
+            console.log(`Creating annotation in viewport ${index}:`, viewportId);
             createAnnotationInViewportDirect(viewportElement, groupName, worldCoords);
           } catch (error) {
             console.error(`Error creating annotation in viewport ${index}:`, error);
@@ -462,7 +470,7 @@ function Talas({ setCurrentView, commandsManager }) {
                   font-weight: bold;
                   pointer-events: none;
                   z-index: 1000;
-                  transform: translate(-50%, -50%);
+                  transform: translate(-4px, -4px);
                   display: flex;
                   align-items: center;
                   gap: 4px;
