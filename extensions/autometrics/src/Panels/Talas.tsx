@@ -17,7 +17,10 @@ function Talas({ setCurrentView, commandsManager }) {
     handleMouseDown: (event: MouseEvent) => void;
   } | null>(null);
   const annotationsRef = useRef<
-    Map<string, { element: HTMLElement; worldCoords: number[]; sliceIndex: number }>
+    Map<
+      string,
+      { element: HTMLElement; worldCoords: number[]; sliceIndex: number; viewportId: string }
+    >
   >(new Map());
   const viewportAnnotationsRef = useRef<
     Map<string, Map<string, { element: HTMLElement; worldCoords: number[]; sliceIndex: number }>>
@@ -285,6 +288,7 @@ function Talas({ setCurrentView, commandsManager }) {
           element: annotationDiv,
           worldCoords: centerPoint,
           sliceIndex: enabledElement.viewport.getSliceIndex(),
+          viewportId: 'mpr-axial', // Axial viewport ID
         });
 
         // Create annotations for all viewports
@@ -531,6 +535,7 @@ function Talas({ setCurrentView, commandsManager }) {
           element: annotationDiv,
           worldCoords: worldCoords,
           sliceIndex: enabledElement.viewport.getSliceIndex(),
+          viewportId: viewportId, // Store viewport ID for slice checking
         });
 
         console.log(
@@ -581,17 +586,26 @@ function Talas({ setCurrentView, commandsManager }) {
         annotationsRef.current.forEach((annotation, annotationKey) => {
           try {
             // Check if this annotation belongs to this viewport
-            if (annotationKey.includes(viewportId)) {
-              const screenCoords = enabledElement.viewport.worldToCanvas([
-                annotation.worldCoords[0],
-                annotation.worldCoords[1],
-                annotation.worldCoords[2] || 0,
-              ]);
+            if (annotation.viewportId === viewportId) {
+              // Check if we're on the correct slice for this annotation
+              const currentSliceIndex = enabledElement.viewport.getSliceIndex();
 
-              if (screenCoords && screenCoords.length >= 2) {
-                annotation.element.style.left = `${screenCoords[0]}px`;
-                annotation.element.style.top = `${screenCoords[1]}px`;
-                annotation.element.style.display = 'flex'; // Show the annotation
+              if (currentSliceIndex === annotation.sliceIndex) {
+                // Show annotation and update position
+                const screenCoords = enabledElement.viewport.worldToCanvas([
+                  annotation.worldCoords[0],
+                  annotation.worldCoords[1],
+                  annotation.worldCoords[2] || 0,
+                ]);
+
+                if (screenCoords && screenCoords.length >= 2) {
+                  annotation.element.style.left = `${screenCoords[0]}px`;
+                  annotation.element.style.top = `${screenCoords[1]}px`;
+                  annotation.element.style.display = 'flex'; // Show the annotation
+                }
+              } else {
+                // Hide annotation if we're on a different slice
+                annotation.element.style.display = 'none';
               }
             }
           } catch (error) {
