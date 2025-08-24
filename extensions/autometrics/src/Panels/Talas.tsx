@@ -48,6 +48,7 @@ function Talas({ setCurrentView, commandsManager }) {
   const handleSubmit = () => {
     // Handle form submission
     console.log('Coordinates submitted:', coordinates);
+    console.log('Setting showPopup to true');
     setShowPopup(true);
   };
 
@@ -564,6 +565,10 @@ function Talas({ setCurrentView, commandsManager }) {
     };
   }, []);
 
+  useEffect(() => {
+    console.log('showPopup changed to:', showPopup);
+  }, [showPopup]);
+
   // Add viewport change listener to update annotation positions
   useEffect(() => {
     let animationFrameId: number;
@@ -904,6 +909,8 @@ function Talas({ setCurrentView, commandsManager }) {
               src="/talas_visualization.png"
               alt="Talas Visualization"
               className="h-auto w-full object-contain"
+              onLoad={() => console.log('Image loaded successfully')}
+              onError={e => console.error('Image failed to load:', e)}
             />
           </div>
         </div>
