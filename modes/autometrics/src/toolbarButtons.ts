@@ -13,7 +13,7 @@ const callbacks = (toolName: string) => [
 export const setToolActiveToolbar = {
   commandName: 'setToolActiveToolbar',
   commandOptions: {
-    toolGroupIds: ['default', 'mpr', 'SRToolGroup', 'volume3d'],
+    toolGroupIds: ['default', 'mpr', 'SRToolGroup'],
   },
 };
 
@@ -23,16 +23,11 @@ const toolbarButtons = [
     id: 'WindowLevel',
     uiType: 'ohif.toolButton',
     props: {
+      type: 'tool',
       icon: 'tool-window-level',
       label: 'Window Level',
       commands: setToolActiveToolbar,
-      evaluate: [
-        'evaluate.cornerstoneTool',
-        {
-          name: 'evaluate.viewport.supported',
-          unsupportedViewportTypes: ['wholeSlide'],
-        },
-      ],
+      evaluate: 'evaluate.cornerstoneTool',
     },
   },
   {

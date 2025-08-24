@@ -16,7 +16,7 @@ const ohif = {
 };
 
 const autometricsLayout = {
-  layout: '@ohif/extension-autometrics.layoutTemplateModule.viewerLayout',
+  layout: '@ohif/extension-default.layoutTemplateModule.viewerLayout',
 };
 
 const autometrics = {
@@ -74,7 +74,6 @@ const extensionDependencies = {
 };
 
 function modeFactory({ modeConfiguration }) {
-  let _activatePanelTriggersSubscriptions = [];
   return {
     // TODO: We're using this as a route segment
     // We should not be.
@@ -84,7 +83,7 @@ function modeFactory({ modeConfiguration }) {
     /**
      * Lifecycle hooks
      */
-    onModeEnter: function ({ servicesManager, extensionManager, commandsManager }: withAppTypes) {
+    onModeEnter: ({ servicesManager, extensionManager, commandsManager }: withAppTypes) => {
       const { measurementService, toolbarService, toolGroupService, customizationService } =
         servicesManager.services;
 
@@ -179,9 +178,6 @@ function modeFactory({ modeConfiguration }) {
         uiModalService,
       } = servicesManager.services;
 
-      _activatePanelTriggersSubscriptions.forEach(sub => sub.unsubscribe());
-      _activatePanelTriggersSubscriptions = [];
-
       uiDialogService.hideAll();
       uiModalService.hide();
       toolGroupService.destroy();
@@ -211,12 +207,7 @@ function modeFactory({ modeConfiguration }) {
         /*init: ({ servicesManager, extensionManager }) => {
           //defaultViewerRouteInit
         },*/
-        layoutTemplate: ({
-          servicesManager,
-          extensionManager,
-          commandsManager,
-          hotkeysManager,
-        }) => {
+        layoutTemplate: () => {
           return {
             id: autometricsLayout.layout,
             props: {

@@ -86,7 +86,6 @@ function initDefaultToolGroup(extensionManager, toolGroupService, commandsManage
     ],
     enabled: [
       { toolName: toolNames.ImageOverlayViewer },
-      { toolName: toolNames.ReferenceLines },
       {
         toolName: SRToolNames.SRSCOORD3DPoint,
       },
@@ -95,6 +94,7 @@ function initDefaultToolGroup(extensionManager, toolGroupService, commandsManage
       {
         toolName: toolNames.AdvancedMagnify,
       },
+      { toolName: toolNames.ReferenceLines },
     ],
   };
 
