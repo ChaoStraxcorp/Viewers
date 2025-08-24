@@ -1,5 +1,6 @@
 import React from 'react';
 import { Button } from '@ohif/ui-next';
+import LogoSection from '../Components/LogoSection';
 
 const Main = ({ handleButtonClick }) => {
   return (
@@ -81,28 +82,7 @@ const Main = ({ handleButtonClick }) => {
         </div>
       </div>
 
-      {/* CUBEVUE AUTOMETRICS Logo */}
-      <div className="mt-6 flex items-center justify-center border-t border-gray-600 pt-4">
-        <div className="flex w-full flex-col items-center space-y-3">
-          {/* CurveBeam Logo */}
-          <div className="w-full">
-            <img
-              src="/Curvebeam-Logo.png"
-              alt="CurveBeam Logo"
-              className="h-auto w-full object-contain"
-            />
-          </div>
-
-          {/* Autometrics Logo */}
-          <div className="w-full">
-            <img
-              src="/Autometrics.png"
-              alt="Autometrics"
-              className="h-auto w-full object-contain"
-            />
-          </div>
-        </div>
-      </div>
+      <LogoSection />
     </div>
   );
 };
