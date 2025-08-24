@@ -15,6 +15,10 @@ const ohif = {
     '@ohif/extension-cornerstone.sopClassHandlerModule.DicomMicroscopySopClassHandler',
 };
 
+const autometricsLayout = {
+  layout: '@ohif/extension-autometrics.layoutTemplateModule.viewerLayout',
+};
+
 const autometrics = {
   autometrics: '@ohif/extension-autometrics.panelModule.autometrics',
 };
@@ -207,9 +211,14 @@ function modeFactory({ modeConfiguration }) {
         /*init: ({ servicesManager, extensionManager }) => {
           //defaultViewerRouteInit
         },*/
-        layoutTemplate: () => {
+        layoutTemplate: ({
+          servicesManager,
+          extensionManager,
+          commandsManager,
+          hotkeysManager,
+        }) => {
           return {
-            id: ohif.layout,
+            id: autometricsLayout.layout,
             props: {
               leftPanels: [tracked.thumbnailList],
               leftPanelResizable: true,
