@@ -434,6 +434,24 @@ function Talas({ setCurrentView, commandsManager }) {
       console.log(`Viewport element:`, viewportElement);
       console.log(`Enabled element:`, enabledElement);
 
+      // Navigate sagittal and coronal views to the clicked position
+      try {
+        if (viewportId.includes('sagittal') || viewportId.includes('coronal')) {
+          const viewport = enabledElement.viewport;
+
+          // Use the jumpToWorld method to navigate to the world coordinates
+          const point3: [number, number, number] = [
+            worldCoords[0],
+            worldCoords[1],
+            worldCoords[2] || 0,
+          ];
+          viewport.jumpToWorld(point3);
+          console.log(`Navigated ${viewportId} to world coordinates:`, point3);
+        }
+      } catch (navError) {
+        console.warn(`Could not navigate ${viewportId}:`, navError);
+      }
+
       // Create a simple div element to show the annotation
       const annotationDiv = document.createElement('div');
       annotationDiv.className = 'custom-annotation';
