@@ -16,7 +16,7 @@ const ohif = {
 };
 
 const autometricsLayout = {
-  layout: '@ohif/extension-default.layoutTemplateModule.viewerLayout',
+  layout: '@ohif/extension-autometrics.layoutTemplateModule.viewerLayout',
 };
 
 const autometrics = {
