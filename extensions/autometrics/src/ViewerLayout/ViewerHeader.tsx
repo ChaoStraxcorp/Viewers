@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-import { Button, Header, Icons, useModal } from '@ohif/ui-next';
+import { Button, Icons, useModal } from '@ohif/ui-next';
 import { useSystem } from '@ohif/core';
 import { Toolbar } from '../Toolbar/Toolbar';
 import HeaderPatientInfo from './HeaderPatientInfo';
@@ -16,25 +16,6 @@ function ViewerHeader({ appConfig }: withAppTypes<{ appConfig: AppTypes.Config }
 
   const navigate = useNavigate();
   const location = useLocation();
-
-  const onClickReturnButton = () => {
-    const { pathname } = location;
-    const dataSourceIdx = pathname.indexOf('/', 1);
-
-    const dataSourceName = pathname.substring(dataSourceIdx + 1);
-    const existingDataSource = extensionManager.getDataSources(dataSourceName);
-
-    const searchQuery = new URLSearchParams();
-    if (dataSourceIdx !== -1 && existingDataSource) {
-      searchQuery.append('datasources', pathname.substring(dataSourceIdx + 1));
-    }
-    preserveQueryParameters(searchQuery);
-
-    navigate({
-      pathname: '/',
-      search: decodeURIComponent(searchQuery.toString()),
-    });
-  };
 
   const { t } = useTranslation();
   const { show } = useModal();
@@ -82,25 +63,64 @@ function ViewerHeader({ appConfig }: withAppTypes<{ appConfig: AppTypes.Config }
   }
 
   return (
-    <Header
-      menuOptions={menuOptions}
-      isReturnEnabled={!!appConfig.showStudyList}
-      onClickReturnButton={onClickReturnButton}
-      WhiteLabeling={appConfig.whiteLabeling}
-      Secondary={<Toolbar buttonSection="secondary" />}
-      PatientInfo={
-        appConfig.showPatientInfo !== PatientInfoVisibility.DISABLED && (
+    <div className="flex h-[52px] w-full items-center justify-between bg-black px-4 text-white">
+      {/* Left side - Patient Info */}
+      <div className="flex items-center">
+        {appConfig.showPatientInfo !== PatientInfoVisibility.DISABLED && (
           <HeaderPatientInfo
             servicesManager={servicesManager}
             appConfig={appConfig}
           />
-        )
-      }
-    >
-      <div className="relative flex justify-center gap-[4px]">
+        )}
+      </div>
+
+      {/* Center - Primary Toolbar */}
+      <div className="flex items-center justify-center">
         <Toolbar buttonSection="primary" />
       </div>
-    </Header>
+
+      {/* Right side - Secondary Toolbar and Menu */}
+      <div className="flex items-center gap-2">
+        <Toolbar buttonSection="secondary" />
+
+        {/* Menu Button */}
+        <div className="relative">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              // Simple dropdown menu implementation
+              const menu = document.createElement('div');
+              menu.className =
+                'absolute right-0 top-full z-50 mt-1 w-48 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5';
+              menu.innerHTML = menuOptions
+                .map(
+                  option => `
+                <button class="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100" onclick="this.parentElement.remove()">
+                  ${option.title}
+                </button>
+              `
+                )
+                .join('');
+
+              const button = document.querySelector('[data-menu-button]');
+              button?.parentElement?.appendChild(menu);
+
+              // Close menu when clicking outside
+              document.addEventListener('click', function closeMenu(e) {
+                if (!menu.contains(e.target as Node)) {
+                  menu.remove();
+                  document.removeEventListener('click', closeMenu);
+                }
+              });
+            }}
+            data-menu-button
+          >
+            <Icons.ByName name="chevron-down" />
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
