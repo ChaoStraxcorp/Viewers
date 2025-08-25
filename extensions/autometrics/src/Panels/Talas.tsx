@@ -17,6 +17,7 @@ function Talas({ setCurrentView, commandsManager }) {
   const eventListenerRef = useRef<{
     handleRightClick: (event: MouseEvent) => void;
     handleMouseDown: (event: MouseEvent) => void;
+    isProcessing: boolean;
   } | null>(null);
   const annotationsRef = useRef<
     Map<
@@ -66,59 +67,64 @@ function Talas({ setCurrentView, commandsManager }) {
 
   // Function to add click listener for coordinate capture
   const addClickListener = () => {
-    const element = document.querySelector('.cornerstone-viewport-element');
-    if (!element) {
-      console.warn('No cornerstone viewport element found');
+    // Always clear any previous listeners before adding
+    removeClickListener();
+
+    const viewportElements = document.querySelectorAll('.cornerstone-viewport-element');
+    if (!viewportElements || viewportElements.length === 0) {
+      console.warn('No cornerstone viewport elements found');
       return;
     }
 
-    const handleRightClick = event => {
+    console.log(`Found ${viewportElements.length} viewport elements`);
+
+    const handleRightClick = (event: MouseEvent) => {
       event.preventDefault();
       event.stopPropagation();
 
+      // Capture the ref at the beginning to avoid null access issues
+      const listenerRef = eventListenerRef.current;
+      if (!listenerRef || listenerRef.isProcessing) return;
+
+      // Set processing flag
+      listenerRef.isProcessing = true;
+
       console.log('Right click detected');
 
-      // Get the viewport element
-      const viewportElement = event.currentTarget;
+      const viewportElement = event.currentTarget as HTMLDivElement;
       const rect = viewportElement.getBoundingClientRect();
 
-      // Get the viewport
       const enabledElement = getEnabledElement(viewportElement);
       if (!enabledElement) {
-        console.warn('No enabled element found');
+        listenerRef.isProcessing = false;
         return;
       }
 
       const viewport = enabledElement.viewport;
-
-      // Calculate pixel coordinates relative to the viewport
       const pixelX = event.clientX - rect.left;
       const pixelY = event.clientY - rect.top;
-
-      // Convert to normalized coordinates (0-1 range)
       const normalizedX = pixelX / rect.width;
       const normalizedY = pixelY / rect.height;
 
-      // Convert pixel coordinates to world coordinates
       const worldCoords = viewport.canvasToWorld([pixelX, pixelY]);
-      console.log('worldCoords:', worldCoords);
-
-      // Validate world coordinates
-      if (!worldCoords || !Array.isArray(worldCoords) || worldCoords.length < 2) {
-        console.error('Invalid world coordinates:', worldCoords);
+      if (!worldCoords || worldCoords.length < 2) {
+        listenerRef.isProcessing = false;
         return;
       }
 
-      // Ensure world coordinates are numbers
       const validWorldCoords = [
         Number(worldCoords[0]) || 0,
         Number(worldCoords[1]) || 0,
         Number(worldCoords[2]) || 0,
       ];
-      console.log('Validated world coordinates:', validWorldCoords);
 
-      // Update coordinates for the selected group using the ref to avoid stale closure
       const currentGroup = selectedGroupRef.current;
+      if (!currentGroup) {
+        // nothing selected → ignore
+        listenerRef.isProcessing = false;
+        return;
+      }
+
       setCoordinates(prev => ({
         ...prev,
         [currentGroup]: {
@@ -134,51 +140,55 @@ function Talas({ setCurrentView, commandsManager }) {
         world: validWorldCoords,
       });
 
-      // Draw a circle annotation at the clicked location with anatomical name as label
-      drawCircleAnnotation(viewportElement, validWorldCoords, currentGroup);
+      const anatomicalNames = {
+        M1: '1st Metatarsal',
+        M5: '5th Metatarsal',
+        C: 'Calcaneous',
+        T: 'Talus',
+      };
+      const anatomicalName = anatomicalNames[currentGroup] || currentGroup;
 
-      // Reset selection state
+      // Single call; no more timeouts or duplicate paths
+      createAnnotationsForAllViewports(currentGroup, validWorldCoords, anatomicalName);
+
+      // Reset state and listeners
       setSelectedGroup('');
       selectedGroupRef.current = '';
       document.body.style.cursor = 'default';
 
-      // Remove the click listener
+      // Clear processing flag BEFORE removing listeners
+      listenerRef.isProcessing = false;
+
+      // Remove the click listener (this will null the ref)
       removeClickListener();
     };
 
-    // Add event listeners
-    element.addEventListener('contextmenu', handleRightClick, true);
-    element.addEventListener(
-      'mousedown',
-      (event: MouseEvent) => {
-        if (event.button === 2) {
-          // Right mouse button
-          event.preventDefault();
-          event.stopPropagation();
-        }
-      },
-      true
-    );
-
-    // Store the listener for removal
-    eventListenerRef.current = {
-      handleRightClick,
-      handleMouseDown: (event: MouseEvent) => {
-        if (event.button === 2) {
-          // Right mouse button
-          event.preventDefault();
-          event.stopPropagation();
-        }
-      },
+    const handleMouseDown = (event: MouseEvent) => {
+      if (event.button === 2) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
     };
+
+    // Store single instances to remove later
+    eventListenerRef.current = { handleRightClick, handleMouseDown, isProcessing: false };
+
+    // Attach the SAME handler instances to all viewports
+    viewportElements.forEach((element, index) => {
+      console.log(`Adding event listeners to viewport ${index}:`, element);
+      element.addEventListener('contextmenu', handleRightClick, true);
+      element.addEventListener('mousedown', handleMouseDown, true);
+    });
   };
 
   // Function to remove click listener
   const removeClickListener = () => {
-    const element = document.querySelector('.cornerstone-viewport-element');
-    if (element && eventListenerRef.current) {
-      element.removeEventListener('contextmenu', eventListenerRef.current.handleRightClick, true);
-      element.removeEventListener('mousedown', eventListenerRef.current.handleMouseDown, true);
+    const viewportElements = document.querySelectorAll('.cornerstone-viewport-element');
+    if (eventListenerRef.current) {
+      viewportElements.forEach(element => {
+        element.removeEventListener('contextmenu', eventListenerRef.current.handleRightClick, true);
+        element.removeEventListener('mousedown', eventListenerRef.current.handleMouseDown, true);
+      });
       eventListenerRef.current = null;
     }
   };
@@ -295,7 +305,7 @@ function Talas({ setCurrentView, commandsManager }) {
           viewportId: 'mpr-axial', // Axial viewport ID
         });
 
-        // Create annotations for all viewports
+        // Create annotations for all viewports (including the clicked one)
         createAnnotationsForAllViewports(groupName, centerPoint, anatomicalName);
 
         console.log(
@@ -326,101 +336,36 @@ function Talas({ setCurrentView, commandsManager }) {
     anatomicalName: string
   ) => {
     try {
-      // Try to get viewports from the services manager if available
-      let viewportIds = [];
+      // Remove all group annotations globally first
+      const allViewportElements = document.querySelectorAll('.cornerstone-viewport-element');
+      allViewportElements.forEach(viewportElement => {
+        viewportElement
+          .querySelectorAll(`[data-annotation-group="${groupName}"]`)
+          .forEach(el => el.remove());
+      });
 
-      if (commandsManager && commandsManager.services) {
-        const servicesManager = commandsManager.services;
-        console.log('Available services:', Object.keys(servicesManager));
-
-        // Try different ways to get viewport IDs
-        if (servicesManager.viewportGridService) {
-          viewportIds = servicesManager.viewportGridService.getViewportIds();
-          console.log('Found viewport IDs from viewportGridService:', viewportIds);
-        }
+      let viewportIds: string[] = [];
+      if (commandsManager?.services?.viewportGridService) {
+        viewportIds = commandsManager.services.viewportGridService.getViewportIds();
       }
 
       if (viewportIds.length > 0) {
-        // Use viewport grid service method
         viewportIds.forEach(viewportId => {
-          try {
-            // Get the viewport element
-            const viewportElement = document.querySelector(
-              `[data-viewport-id="${viewportId}"]`
-            ) as HTMLDivElement;
-            if (viewportElement) {
-              console.log(`Creating annotation in viewport: ${viewportId}`);
-              createAnnotationInViewportDirect(viewportElement, groupName, worldCoords);
-            }
-          } catch (error) {
-            console.error(`Error creating annotation in viewport ${viewportId}:`, error);
-          }
-        });
-      } else {
-        console.warn('Viewport grid service not available, using direct DOM method');
-
-        // Try multiple selectors to find MPR viewports
-        const selectors = [
-          '.cornerstone-viewport-element',
-          '[data-viewport-id*="mpr"]',
-          '[data-viewport-id*="MPR"]',
-          '[data-viewport-uid*="mpr"]',
-          '[data-viewport-uid*="MPR"]',
-          '[data-viewportid*="mpr"]',
-          '[data-viewportid*="MPR"]',
-        ];
-
-        let allViewports: NodeListOf<HTMLDivElement> | null = null;
-
-        for (const selector of selectors) {
-          const viewports = document.querySelectorAll(selector) as NodeListOf<HTMLDivElement>;
-          if (viewports.length >= 3) {
-            console.log(`Found ${viewports.length} viewports with selector: ${selector}`);
-            allViewports = viewports;
-            break;
-          }
-        }
-
-        if (!allViewports) {
-          // Fallback to the original method
-          allViewports = document.querySelectorAll(
-            '.cornerstone-viewport-element'
-          ) as NodeListOf<HTMLDivElement>;
-          console.log(`Fallback: Found ${allViewports.length} viewport elements directly`);
-        }
-
-        // Log all found viewports for debugging
-        allViewports.forEach((viewport, index) => {
-          console.log(`Viewport ${index}:`, {
-            id: viewport.id,
-            dataViewportId: viewport.getAttribute('data-viewport-id'),
-            dataViewportUid: viewport.getAttribute('data-viewport-uid'),
-            className: viewport.className,
-          });
-        });
-
-        allViewports.forEach((viewportElement, index) => {
-          try {
-            const viewportId =
-              viewportElement.getAttribute('data-viewport-id') ||
-              viewportElement.getAttribute('data-viewport-uid') ||
-              viewportElement.getAttribute('data-viewportid') ||
-              viewportElement.id ||
-              `viewport-${index}`;
-
-            // Skip axial view to avoid duplicate annotation
-            if (viewportId.includes('axial')) {
-              console.log(`Skipping axial view to avoid duplicate annotation`);
-              return;
-            }
-
-            console.log(`Creating annotation in viewport ${index}:`, viewportId);
+          const viewportElement = document.querySelector(
+            `[data-viewport-id="${viewportId}"]`
+          ) as HTMLDivElement;
+          if (viewportElement) {
             createAnnotationInViewportDirect(viewportElement, groupName, worldCoords);
-          } catch (error) {
-            console.error(`Error creating annotation in viewport ${index}:`, error);
           }
         });
+        return; // prevent fall-through
       }
+
+      // Fallback: DOM
+      const viewports = document.querySelectorAll(
+        '.cornerstone-viewport-element'
+      ) as NodeListOf<HTMLDivElement>;
+      viewports.forEach(vp => createAnnotationInViewportDirect(vp, groupName, worldCoords));
     } catch (error) {
       console.error('Error creating annotations for all viewports:', error);
     }
@@ -432,6 +377,14 @@ function Talas({ setCurrentView, commandsManager }) {
     groupName: string,
     worldCoords: number[]
   ) => {
+    // Remove existing annotation for this group in this viewport if it exists
+    const existingAnnotation = viewportElement.querySelector(
+      `[data-annotation-group="${groupName}"]`
+    );
+    if (existingAnnotation) {
+      existingAnnotation.remove();
+      console.log(`Removed existing annotation for ${groupName} in this viewport`);
+    }
     try {
       const enabledElement = getEnabledElement(viewportElement);
       if (!enabledElement) {
@@ -471,6 +424,7 @@ function Talas({ setCurrentView, commandsManager }) {
       // Create a simple div element to show the annotation
       const annotationDiv = document.createElement('div');
       annotationDiv.className = 'custom-annotation';
+      annotationDiv.setAttribute('data-annotation-group', groupName);
       annotationDiv.style.cssText = `
                   position: absolute;
                   color: #ff0000;

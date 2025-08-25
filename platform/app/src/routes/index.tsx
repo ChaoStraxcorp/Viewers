@@ -77,6 +77,10 @@ const bakedInRoutes = [
     path: `/localbasic`,
     children: Local.bind(null, { modePath: 'viewer/dicomlocal' }),
   },
+  {
+    path: `/local-autometrics`,
+    children: Local.bind(null, { modePath: 'autometrics/dicomlocal' }),
+  },
 ];
 
 // NOT FOUND (404)
