@@ -65,6 +65,19 @@ function Talas({ setCurrentView, commandsManager }) {
     addClickListener();
   };
 
+  // Function to remove click listeners
+  const removeClickListener = () => {
+    if (eventListenerRef.current) {
+      const viewportElements = document.querySelectorAll('.cornerstone-viewport-element');
+      viewportElements.forEach(element => {
+        element.removeEventListener('contextmenu', eventListenerRef.current.handleRightClick, true);
+        element.removeEventListener('mousedown', eventListenerRef.current.handleMouseDown, true);
+      });
+      eventListenerRef.current = null;
+    }
+    document.body.style.cursor = 'default';
+  };
+
   // Function to add click listener for coordinate capture
   const addClickListener = () => {
     // Always clear any previous listeners before adding
@@ -151,6 +164,31 @@ function Talas({ setCurrentView, commandsManager }) {
       // Single call; no more timeouts or duplicate paths
       createAnnotationsForAllViewports(currentGroup, validWorldCoords, anatomicalName);
 
+      // Update crosshair position across all viewports
+      try {
+        const { toolGroupService } = commandsManager.services;
+        const toolGroupIds = toolGroupService.getToolGroupIds();
+
+        toolGroupIds.forEach(toolGroupId => {
+          const toolGroup = toolGroupService.getToolGroup(toolGroupId);
+          const crosshairTool = toolGroup.getToolInstance('Crosshairs');
+
+          if (crosshairTool) {
+            // Try to set the crosshair position using the tool's method
+            if (crosshairTool.setCrosshairPosition) {
+              crosshairTool.setCrosshairPosition(validWorldCoords);
+            } else if (crosshairTool.setPosition) {
+              crosshairTool.setPosition(validWorldCoords);
+            } else {
+              // Fallback: try to update the tool's center
+              crosshairTool.computeToolCenter();
+            }
+          }
+        });
+      } catch (error) {
+        console.warn('Could not update crosshair position:', error);
+      }
+
       // Reset state and listeners
       setSelectedGroup('');
       selectedGroupRef.current = '';
@@ -179,18 +217,6 @@ function Talas({ setCurrentView, commandsManager }) {
       element.addEventListener('contextmenu', handleRightClick, true);
       element.addEventListener('mousedown', handleMouseDown, true);
     });
-  };
-
-  // Function to remove click listener
-  const removeClickListener = () => {
-    const viewportElements = document.querySelectorAll('.cornerstone-viewport-element');
-    if (eventListenerRef.current) {
-      viewportElements.forEach(element => {
-        element.removeEventListener('contextmenu', eventListenerRef.current.handleRightClick, true);
-        element.removeEventListener('mousedown', eventListenerRef.current.handleMouseDown, true);
-      });
-      eventListenerRef.current = null;
-    }
   };
 
   // Function to draw a circle annotation using CircleROI tool with anatomical name as label
@@ -403,20 +429,16 @@ function Talas({ setCurrentView, commandsManager }) {
       console.log(`Viewport element:`, viewportElement);
       console.log(`Enabled element:`, enabledElement);
 
-      // Navigate sagittal and coronal views to the clicked position
+      // Navigate ALL views (axial, sagittal, coronal) to the clicked position
       try {
-        if (viewportId.includes('sagittal') || viewportId.includes('coronal')) {
-          const viewport = enabledElement.viewport;
-
-          // Use the jumpToWorld method to navigate to the world coordinates
-          const point3: [number, number, number] = [
-            worldCoords[0],
-            worldCoords[1],
-            worldCoords[2] || 0,
-          ];
-          viewport.jumpToWorld(point3);
-          console.log(`Navigated ${viewportId} to world coordinates:`, point3);
-        }
+        const viewport = enabledElement.viewport;
+        const point3: [number, number, number] = [
+          worldCoords[0],
+          worldCoords[1],
+          worldCoords[2] || 0,
+        ];
+        viewport.jumpToWorld(point3);
+        console.log(`Navigated ${viewportId} to world coordinates:`, point3);
       } catch (navError) {
         console.warn(`Could not navigate ${viewportId}:`, navError);
       }
