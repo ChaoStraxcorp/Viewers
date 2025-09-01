@@ -3,7 +3,10 @@
 window.config = {
   name: 'config/default.js',
   routerBasename: null,
-  // whiteLabeling: {},
+  whiteLabeling: {
+    createLogoComponentFn: () => null,
+    isReturnEnabled: false,
+  },
   extensions: [],
   modes: [],
   customizationService: {},
